@@ -1,3 +1,4 @@
+
 import api from "@/services/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -24,15 +25,23 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // ======================================================
 
 type PostType =
+  | "general"
   | "session_conducted"
   | "student_achievement"
   | "workshop_event"
   | "research_insight"
   | "faculty_development";
 
-type PostTone = "Reflective" | "Informative" | "Celebratory" | "Inspirational";
+type PostTone =
+  | "Professional"
+  | "Reflective"
+  | "Informative"
+  | "Celebratory"
+  | "Inspirational"
+  | "Creative";
 
 type Step = "form" | "review";
+type PreviewMode = "preview" | "edit";
 
 interface FormState {
   topic: string;
@@ -40,74 +49,80 @@ interface FormState {
   tone: PostTone;
 }
 
-// ======================================================
-// POST TYPES
-// ======================================================
-
-const POST_TYPES = [
-  {
-    value: "session_conducted" as PostType,
-    label: "Session conducted",
-    hint: "Workshops, lectures, panel sessions",
-    icon: "school-outline" as keyof typeof Ionicons.glyphMap,
-  },
-  {
-    value: "student_achievement" as PostType,
-    label: "Student achievement",
-    hint: "Awards, competitions, showcases",
-    icon: "trophy-outline" as keyof typeof Ionicons.glyphMap,
-  },
-  {
-    value: "workshop_event" as PostType,
-    label: "Workshop / event",
-    hint: "Events you organized or spoke at",
-    icon: "calendar-outline" as keyof typeof Ionicons.glyphMap,
-  },
-  {
-    value: "research_insight" as PostType,
-    label: "Research / insight",
-    hint: "Reflections, findings, opinions",
-    icon: "bulb-outline" as keyof typeof Ionicons.glyphMap,
-  },
-  {
-    value: "faculty_development" as PostType,
-    label: "Faculty development",
-    hint: "Training, mentoring initiatives",
-    icon: "people-outline" as keyof typeof Ionicons.glyphMap,
-  },
-];
+interface GenerateResponse {
+  success?: boolean;
+  post?: string;
+  postId?: string;
+  message?: string;
+  error?: string;
+}
 
 // ======================================================
-// TONES
+// POST TYPES - MATCHES WEB APP
+// ======================================================
+
+const POST_TYPES: {
+  value: PostType;
+  label: string;
+  hint: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
+    {
+      value: "general",
+      label: "General post",
+      hint: "Any professional or academic topic",
+      icon: "document-text-outline",
+    },
+    {
+      value: "session_conducted",
+      label: "Session conducted",
+      hint: "Workshops, lectures, panel sessions",
+      icon: "school-outline",
+    },
+    {
+      value: "student_achievement",
+      label: "Student achievement",
+      hint: "Awards, competitions, showcases",
+      icon: "trophy-outline",
+    },
+    {
+      value: "workshop_event",
+      label: "Workshop / event",
+      hint: "Events you organized or spoke at",
+      icon: "calendar-outline",
+    },
+    {
+      value: "research_insight",
+      label: "Research / insight",
+      hint: "Reflections, findings, opinions",
+      icon: "bulb-outline",
+    },
+    {
+      value: "faculty_development",
+      label: "Faculty development",
+      hint: "Training, mentoring initiatives",
+      icon: "people-outline",
+    },
+  ];
+
+// ======================================================
+// TONES - MATCHES WEB APP
 // ======================================================
 
 const TONES: {
   value: PostTone;
   icon: keyof typeof Ionicons.glyphMap;
 }[] = [
-  {
-    value: "Reflective",
-    icon: "chatbubble-ellipses-outline",
-  },
-  {
-    value: "Informative",
-    icon: "information-circle-outline",
-  },
-  {
-    value: "Celebratory",
-    icon: "sparkles-outline",
-  },
-  {
-    value: "Inspirational",
-    icon: "heart-outline",
-  },
-];
-
-// ======================================================
-// LABELS
-// ======================================================
+    { value: "Professional", icon: "briefcase-outline" },
+    { value: "Reflective", icon: "chatbubble-ellipses-outline" },
+    { value: "Informative", icon: "information-circle-outline" },
+    { value: "Celebratory", icon: "sparkles-outline" },
+    { value: "Inspirational", icon: "heart-outline" },
+    { value: "Creative", icon: "color-palette-outline" },
+  ];
 
 const TYPE_LABELS: Record<PostType, string> = {
+  general: "General post",
   session_conducted: "Session conducted",
   student_achievement: "Student achievement",
   workshop_event: "Workshop / event",
@@ -116,7 +131,7 @@ const TYPE_LABELS: Record<PostType, string> = {
 };
 
 // ======================================================
-// VALIDATION
+// VALIDATION - MATCHES MOBILE REQUIREMENTS
 // ======================================================
 
 function isGibberish(str: string): boolean {
@@ -128,12 +143,11 @@ function isGibberish(str: string): boolean {
 
   if (words.length < 2) return true;
 
-  const bad = words.filter((w) => {
-    const hasNoVowel = !/[aeiou]/.test(w) && w.length > 3;
-
-    const isRepeating = /(.)\1{3,}/.test(w);
-
-    const isKeyboardSmash = /^[qwrtypsdfghjklzxcvbnm]{5,}$/.test(w);
+  const bad = words.filter((word) => {
+    const hasNoVowel = !/[aeiou]/.test(word) && word.length > 3;
+    const isRepeating = /(.)\1{3,}/.test(word);
+    const isKeyboardSmash =
+      /^[qwrtypsdfghjklzxcvbnm]{5,}$/.test(word);
 
     return hasNoVowel || isRepeating || isKeyboardSmash;
   });
@@ -150,30 +164,40 @@ export default function LinkedInPostGeneratorScreen() {
 
   const [form, setForm] = useState<FormState>({
     topic: "",
-    postType: "session_conducted",
-    tone: "Reflective",
+    postType: "general",
+    tone: "Professional",
   });
 
   const [generatedPost, setGeneratedPost] = useState("");
-
   const [editablePost, setEditablePost] = useState("");
-
   const [postId, setPostId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
-
   const [saving, setSaving] = useState(false);
 
   const [error, setError] = useState("");
-
   const [successMsg, setSuccessMsg] = useState("");
 
   const [copied, setCopied] = useState(false);
-
   const [saved, setSaved] = useState(false);
 
+  const [previewMode, setPreviewMode] =
+    useState<PreviewMode>("preview");
+
+  const hasPost = Boolean(editablePost.trim());
+
+  const wordCount = editablePost.trim()
+    ? editablePost.trim().split(/\s+/).length
+    : 0;
+
+  const characterCount = form.topic.length;
+
+  const selectedPostType = POST_TYPES.find(
+    (item) => item.value === form.postType
+  );
+
   // ====================================================
-  // GENERATE
+  // GENERATE POST
   // ====================================================
 
   const handleGenerate = async () => {
@@ -183,7 +207,7 @@ export default function LinkedInPostGeneratorScreen() {
     setSuccessMsg("");
 
     if (!topic) {
-      setError("Please tell us what you want to post about.");
+      setError("Please enter a topic for your post.");
       return;
     }
 
@@ -197,30 +221,56 @@ export default function LinkedInPostGeneratorScreen() {
       return;
     }
 
+    if (loading) return;
+
     try {
       setLoading(true);
+      setSaved(false);
+      setCopied(false);
+      setPostId(null);
+      setGeneratedPost("");
+      setEditablePost("");
+      setPreviewMode("preview");
 
-      const response = await api.post("/api/linkedin-posts/generate", {
+      // Same API payload as the Web App.
+      // General posts omit postType.
+      const payload = {
         topic,
-        postType: form.postType,
         tone: form.tone,
-      });
+        ...(form.postType !== "general"
+          ? { postType: form.postType }
+          : {}),
+      };
+
+      const response = await api.post<GenerateResponse>(
+        "/api/linkedin-posts/generate",
+        payload
+      );
 
       const data = response.data;
 
-      if (data.success) {
-        setGeneratedPost(data.post);
-        setEditablePost(data.post);
-        setPostId(data.postId ?? null);
-        setSaved(false);
-        setStep("review");
-      } else {
-        setError(data.message || "Failed to generate your post.");
+      if (!data.success || !data.post) {
+        throw new Error(
+          data.message || data.error || "Failed to generate the post."
+        );
       }
+
+      setGeneratedPost(data.post);
+      setEditablePost(data.post);
+      setPostId(data.postId ?? null);
+      setStep("review");
+      setSuccessMsg("");
     } catch (err: any) {
+      console.log(
+        "LinkedIn post generation error:",
+        err?.response?.data || err.message
+      );
+
       setError(
         err?.response?.data?.message ||
-          "Unable to generate the post. Please try again.",
+        err?.response?.data?.error ||
+        err.message ||
+        "Unable to generate the post. Please try again."
       );
     } finally {
       setLoading(false);
@@ -228,12 +278,14 @@ export default function LinkedInPostGeneratorScreen() {
   };
 
   // ====================================================
-  // SAVE
+  // SAVE DRAFT
   // ====================================================
 
   const handleSaveDraft = async () => {
     if (!postId) {
-      setError("This post cannot be saved because no post ID was returned.");
+      setError(
+        "This post cannot be saved because no post ID was returned."
+      );
       return;
     }
 
@@ -241,6 +293,8 @@ export default function LinkedInPostGeneratorScreen() {
       setError("Your post cannot be empty.");
       return;
     }
+
+    if (saving) return;
 
     try {
       setSaving(true);
@@ -251,46 +305,53 @@ export default function LinkedInPostGeneratorScreen() {
         `/api/linkedin-posts/${postId}/approve`,
         {
           content: editablePost.trim(),
-        },
+        }
       );
 
-      if (response.data?.success) {
-        setSaved(true);
-        setSuccessMsg("Your post has been saved successfully.");
-
-        setTimeout(() => {
-          setSuccessMsg("");
-        }, 3000);
-      } else {
-        setError(response.data?.message || "Failed to save the post.");
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.message || "Failed to save the draft."
+        );
       }
+
+      setSaved(true);
+      setSuccessMsg("Draft saved to your history.");
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to save the post.");
+      console.log(
+        "LinkedIn post save error:",
+        err?.response?.data || err.message
+      );
+
+      setError(
+        err?.response?.data?.message ||
+        err.message ||
+        "Failed to save the draft."
+      );
     } finally {
       setSaving(false);
     }
   };
 
   // ====================================================
-  // COPY
+  // COPY POST
   // ====================================================
 
   const handleCopy = async () => {
-    if (!editablePost.trim()) {
-      return;
+    if (!editablePost.trim()) return;
+
+    try {
+      await Clipboard.setStringAsync(editablePost);
+
+      setCopied(true);
+      setError("");
+      setSuccessMsg("Post copied to clipboard.");
+    } catch {
+      setError("Unable to copy the post.");
     }
-
-    await Clipboard.setStringAsync(editablePost);
-
-    setCopied(true);
-
-    setTimeout(() => {
-      setCopied(false);
-    }, 2000);
   };
 
   // ====================================================
-  // LINKEDIN
+  // OPEN LINKEDIN
   // ====================================================
 
   const handlePostToLinkedIn = async () => {
@@ -299,18 +360,35 @@ export default function LinkedInPostGeneratorScreen() {
       return;
     }
 
-    const encoded = encodeURIComponent(editablePost.trim());
-
-    const url = `https://www.linkedin.com/sharing/share-offsite/?text=${encoded}`;
-
     try {
+      // Copy the post before opening LinkedIn.
+      await Clipboard.setStringAsync(editablePost.trim());
+
+      const url = "https://www.linkedin.com/feed/";
+
       await Linking.openURL(url);
+
+      setCopied(true);
+      setSuccessMsg(
+        "Post copied. Paste it into LinkedIn to publish."
+      );
     } catch {
       Alert.alert(
         "Unable to open LinkedIn",
-        "Please make sure LinkedIn is installed or try opening LinkedIn in your browser.",
+        "Your post is copied if clipboard access succeeded. Please open LinkedIn manually and paste your post."
       );
     }
+  };
+
+  // ====================================================
+  // RESET TO ORIGINAL
+  // ====================================================
+
+  const handleResetOriginal = () => {
+    setEditablePost(generatedPost);
+    setSaved(false);
+    setError("");
+    setSuccessMsg("");
   };
 
   // ====================================================
@@ -324,17 +402,7 @@ export default function LinkedInPostGeneratorScreen() {
   };
 
   // ====================================================
-  // RESET
-  // ====================================================
-
-  const handleResetOriginal = () => {
-    setEditablePost(generatedPost);
-    setSaved(false);
-    setSuccessMsg("");
-  };
-
-  // ====================================================
-  // REGENERATE
+  // REGENERATE / START OVER
   // ====================================================
 
   const handleRegenerate = () => {
@@ -344,27 +412,10 @@ export default function LinkedInPostGeneratorScreen() {
     setPostId(null);
     setSaved(false);
     setCopied(false);
+    setPreviewMode("preview");
     setError("");
     setSuccessMsg("");
   };
-
-  // ====================================================
-  // WORD COUNT
-  // ====================================================
-
-  const wordCount = editablePost.trim()
-    ? editablePost.trim().split(/\s+/).length
-    : 0;
-
-  const characterCount = form.topic.length;
-
-  // ====================================================
-  // SELECTED POST TYPE
-  // ====================================================
-
-  const selectedPostType = POST_TYPES.find(
-    (item) => item.value === form.postType,
-  );
 
   // ====================================================
   // RENDER
@@ -381,9 +432,7 @@ export default function LinkedInPostGeneratorScreen() {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
         >
-          {/* ==========================================
-              HEADER
-          ========================================== */}
+          {/* HEADER */}
 
           <View style={styles.header}>
             <TouchableOpacity
@@ -391,35 +440,41 @@ export default function LinkedInPostGeneratorScreen() {
               onPress={() => router.back()}
               activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={21} color="#FFFFFF" />
+              <Ionicons
+                name="arrow-back"
+                size={21}
+                color="#FFFFFF"
+              />
             </TouchableOpacity>
 
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>LinkedIn Post Agent</Text>
+              <Text style={styles.headerTitle}>
+                LinkedIn Post Studio
+              </Text>
 
-              <Text style={styles.headerSubtitle}>Aevion.AI</Text>
+              <Text style={styles.headerSubtitle}>
+                Aevion.AI
+              </Text>
             </View>
           </View>
 
-          {/* ==========================================
-              PAGE TITLE
-          ========================================== */}
+          {/* PAGE TITLE */}
 
           <View style={styles.titleSection}>
             <Text style={styles.pageTitle}>
-              {step === "form" ? "Create your post" : "Review your post"}
+              {step === "form"
+                ? "Create your post"
+                : "Review your post"}
             </Text>
 
             <Text style={styles.pageSubtitle}>
               {step === "form"
-                ? "Turn your academic work into a professional LinkedIn post."
-                : "Make any changes you need before sharing it."}
+                ? "Turn any topic or idea into a professional, ready-to-share LinkedIn post."
+                : "Review and edit your generated post before sharing it."}
             </Text>
           </View>
 
-          {/* ==========================================
-              PROGRESS
-          ========================================== */}
+          {/* PROGRESS */}
 
           <View style={styles.progressCard}>
             <View style={styles.progressStep}>
@@ -432,7 +487,11 @@ export default function LinkedInPostGeneratorScreen() {
                 ]}
               >
                 {step === "review" ? (
-                  <Ionicons name="checkmark" size={15} color="#0A1238" />
+                  <Ionicons
+                    name="checkmark"
+                    size={15}
+                    color="#0A1238"
+                  />
                 ) : (
                   <Text style={styles.progressNumber}>1</Text>
                 )}
@@ -483,25 +542,29 @@ export default function LinkedInPostGeneratorScreen() {
             </View>
           </View>
 
-          {/* ==========================================
-              ERROR
-          ========================================== */}
+          {/* ERROR */}
 
           {error ? (
             <View style={styles.errorBox}>
-              <Ionicons name="alert-circle-outline" size={20} color="#B42318" />
+              <Ionicons
+                name="alert-circle-outline"
+                size={20}
+                color="#B42318"
+              />
 
               <Text style={styles.errorText}>{error}</Text>
 
               <TouchableOpacity onPress={() => setError("")}>
-                <Ionicons name="close" size={18} color="#B42318" />
+                <Ionicons
+                  name="close"
+                  size={18}
+                  color="#B42318"
+                />
               </TouchableOpacity>
             </View>
           ) : null}
 
-          {/* ==========================================
-              SUCCESS
-          ========================================== */}
+          {/* SUCCESS */}
 
           {successMsg ? (
             <View style={styles.successBox}>
@@ -511,7 +574,9 @@ export default function LinkedInPostGeneratorScreen() {
                 color="#067647"
               />
 
-              <Text style={styles.successText}>{successMsg}</Text>
+              <Text style={styles.successText}>
+                {successMsg}
+              </Text>
             </View>
           ) : null}
 
@@ -521,11 +586,11 @@ export default function LinkedInPostGeneratorScreen() {
 
           {step === "form" && (
             <View>
-              {/* POST TYPE SECTION */}
+              {/* POST TYPE */}
 
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>
-                  What are you posting about?
+                  Post type
                 </Text>
 
                 <Text style={styles.sectionDescription}>
@@ -541,10 +606,10 @@ export default function LinkedInPostGeneratorScreen() {
                     <Pressable
                       key={item.value}
                       onPress={() => {
-                        setForm({
-                          ...form,
+                        setForm((prev) => ({
+                          ...prev,
                           postType: item.value,
-                        });
+                        }));
                         setError("");
                       }}
                       style={[
@@ -555,7 +620,8 @@ export default function LinkedInPostGeneratorScreen() {
                       <View
                         style={[
                           styles.postTypeIconContainer,
-                          selected && styles.postTypeIconContainerSelected,
+                          selected &&
+                          styles.postTypeIconContainerSelected,
                         ]}
                       >
                         <Ionicons
@@ -575,26 +641,35 @@ export default function LinkedInPostGeneratorScreen() {
                           {item.label}
                         </Text>
 
-                        <Text style={styles.postTypeHint}>{item.hint}</Text>
+                        <Text style={styles.postTypeHint}>
+                          {item.hint}
+                        </Text>
                       </View>
 
                       <View
-                        style={[styles.radio, selected && styles.radioSelected]}
+                        style={[
+                          styles.radio,
+                          selected && styles.radioSelected,
+                        ]}
                       >
-                        {selected && <View style={styles.radioDot} />}
+                        {selected && (
+                          <View style={styles.radioDot} />
+                        )}
                       </View>
                     </Pressable>
                   );
                 })}
               </View>
 
-              {/* TOPIC SECTION */}
+              {/* TOPIC */}
 
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Tell us about it</Text>
+                <Text style={styles.sectionTitle}>
+                  What would you like to post about?
+                </Text>
 
                 <Text style={styles.sectionDescription}>
-                  Give Aevion.AI enough context to create a meaningful post.
+                  Add details for a more personalized post.
                 </Text>
               </View>
 
@@ -603,17 +678,15 @@ export default function LinkedInPostGeneratorScreen() {
                   style={styles.topicInput}
                   multiline
                   textAlignVertical="top"
-                  placeholder={
-                    "Example:\n\nConducted a session on AI Ethics for faculty under the HEC Mentoring Program. We explored academic integrity, bias, and responsible use of generative AI."
-                  }
+                  placeholder="e.g. React.js, my first internship, AI in healthcare, leadership..."
                   placeholderTextColor="#9298AC"
                   value={form.topic}
                   maxLength={1000}
                   onChangeText={(text) => {
-                    setForm({
-                      ...form,
+                    setForm((prev) => ({
+                      ...prev,
                       topic: text,
-                    });
+                    }));
                     setError("");
                   }}
                 />
@@ -637,13 +710,15 @@ export default function LinkedInPostGeneratorScreen() {
                 </View>
               </View>
 
-              {/* TONE SECTION */}
+              {/* TONE */}
 
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Choose a tone</Text>
+                <Text style={styles.sectionTitle}>
+                  Writing tone
+                </Text>
 
                 <Text style={styles.sectionDescription}>
-                  How should your post sound?
+                  Choose how your post should sound.
                 </Text>
               </View>
 
@@ -655,10 +730,11 @@ export default function LinkedInPostGeneratorScreen() {
                     <Pressable
                       key={tone.value}
                       onPress={() => {
-                        setForm({
-                          ...form,
+                        setForm((prev) => ({
+                          ...prev,
                           tone: tone.value,
-                        });
+                        }));
+                        setError("");
                       }}
                       style={[
                         styles.toneCard,
@@ -667,7 +743,7 @@ export default function LinkedInPostGeneratorScreen() {
                     >
                       <Ionicons
                         name={tone.icon}
-                        size={19}
+                        size={18}
                         color={selected ? "#FFFFFF" : "#4F5875"}
                       />
 
@@ -683,7 +759,7 @@ export default function LinkedInPostGeneratorScreen() {
                       {selected && (
                         <Ionicons
                           name="checkmark-circle"
-                          size={18}
+                          size={17}
                           color="#FFFFFF"
                           style={styles.toneCheck}
                         />
@@ -706,27 +782,38 @@ export default function LinkedInPostGeneratorScreen() {
               >
                 {loading ? (
                   <>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ActivityIndicator
+                      size="small"
+                      color="#0A1238"
+                    />
 
                     <Text style={styles.generateButtonText}>
-                      Creating your post...
+                      Generating post...
                     </Text>
                   </>
                 ) : (
                   <>
-                    <Ionicons name="sparkles" size={19} color="#FFFFFF" />
+                    <Ionicons
+                      name="sparkles"
+                      size={19}
+                      color="#0A1238"
+                    />
 
                     <Text style={styles.generateButtonText}>
-                      Generate LinkedIn Post
+                      Generate post
                     </Text>
 
-                    <Ionicons name="arrow-forward" size={19} color="#FFFFFF" />
+                    <Ionicons
+                      name="arrow-forward"
+                      size={19}
+                      color="#0A1238"
+                    />
                   </>
                 )}
               </TouchableOpacity>
 
               <Text style={styles.bottomHint}>
-                Aevion.AI will create a professional post based on your inputs.
+                Review your post before publishing.
               </Text>
             </View>
           )}
@@ -737,7 +824,7 @@ export default function LinkedInPostGeneratorScreen() {
 
           {step === "review" && (
             <View>
-              {/* META */}
+              {/* POST DETAILS */}
 
               <View style={styles.reviewMeta}>
                 <View style={styles.metaItem}>
@@ -761,7 +848,9 @@ export default function LinkedInPostGeneratorScreen() {
                     color="#0A1238"
                   />
 
-                  <Text style={styles.metaText}>{form.tone}</Text>
+                  <Text style={styles.metaText}>
+                    {form.tone}
+                  </Text>
                 </View>
               </View>
 
@@ -772,30 +861,106 @@ export default function LinkedInPostGeneratorScreen() {
                 onPress={handleEditInputs}
                 activeOpacity={0.7}
               >
-                <Ionicons name="arrow-back" size={16} color="#0A1238" />
+                <Ionicons
+                  name="arrow-back"
+                  size={16}
+                  color="#FFFFFF"
+                />
 
-                <Text style={styles.editInputsText}>Edit inputs</Text>
+                <Text style={styles.editInputsText}>
+                  Edit inputs
+                </Text>
               </TouchableOpacity>
 
-              {/* POST PREVIEW */}
+              {/* PREVIEW HEADER */}
 
               <View style={styles.previewHeader}>
-                <View>
-                  <Text style={styles.sectionTitle}>Your LinkedIn post</Text>
+                <View style={styles.previewHeadingText}>
+                  <Text style={styles.sectionTitle}>
+                    Post preview
+                  </Text>
 
                   <Text style={styles.sectionDescription}>
-                    Review and edit before publishing.
+                    {wordCount} words · Review before publishing
                   </Text>
                 </View>
 
                 <View style={styles.aiBadge}>
-                  <Ionicons name="sparkles" size={13} color="#0A1238" />
+                  <Ionicons
+                    name="sparkles"
+                    size={13}
+                    color="#0A1238"
+                  />
 
-                  <Text style={styles.aiBadgeText}>AI Generated</Text>
+                  <Text style={styles.aiBadgeText}>
+                    AI Generated
+                  </Text>
                 </View>
               </View>
 
-              {/* POST EDITOR */}
+              {/* PREVIEW / EDIT SWITCH */}
+
+              <View style={styles.modeSwitch}>
+                <TouchableOpacity
+                  style={[
+                    styles.modeButton,
+                    previewMode === "preview" &&
+                    styles.modeButtonActive,
+                  ]}
+                  onPress={() => setPreviewMode("preview")}
+                >
+                  <Ionicons
+                    name="eye-outline"
+                    size={15}
+                    color={
+                      previewMode === "preview"
+                        ? "#FFFFFF"
+                        : "#59617C"
+                    }
+                  />
+
+                  <Text
+                    style={[
+                      styles.modeButtonText,
+                      previewMode === "preview" &&
+                      styles.modeButtonTextActive,
+                    ]}
+                  >
+                    Preview
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.modeButton,
+                    previewMode === "edit" &&
+                    styles.modeButtonActive,
+                  ]}
+                  onPress={() => setPreviewMode("edit")}
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={15}
+                    color={
+                      previewMode === "edit"
+                        ? "#FFFFFF"
+                        : "#59617C"
+                    }
+                  />
+
+                  <Text
+                    style={[
+                      styles.modeButtonText,
+                      previewMode === "edit" &&
+                      styles.modeButtonTextActive,
+                    ]}
+                  >
+                    Edit
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* POST CARD */}
 
               <View style={styles.postEditorCard}>
                 <View style={styles.postEditorTop}>
@@ -804,39 +969,53 @@ export default function LinkedInPostGeneratorScreen() {
                   </View>
 
                   <View>
-                    <Text style={styles.postAuthorName}>LinkedIn Post</Text>
+                    <Text style={styles.postAuthorName}>
+                      LinkedIn post preview
+                    </Text>
 
                     <Text style={styles.postAuthorSub}>
-                      Generated by Aevion.AI
+                      Preview only · Not published
                     </Text>
                   </View>
                 </View>
 
-                <TextInput
-                  style={styles.postEditor}
-                  multiline
-                  textAlignVertical="top"
-                  value={editablePost}
-                  onChangeText={(text) => {
-                    setEditablePost(text);
-                    setSaved(false);
-                    setSuccessMsg("");
-                    setError("");
-                  }}
-                  placeholder="Your generated post..."
-                  placeholderTextColor="#9298AC"
-                />
+                {previewMode === "preview" ? (
+                  <Text style={styles.postPreviewText}>
+                    {editablePost}
+                  </Text>
+                ) : (
+                  <>
+                    <TextInput
+                      style={styles.postEditor}
+                      multiline
+                      textAlignVertical="top"
+                      value={editablePost}
+                      onChangeText={(text) => {
+                        setEditablePost(text);
+                        setSaved(false);
+                        setSuccessMsg("");
+                        setError("");
+                      }}
+                      placeholder="Edit your LinkedIn post..."
+                      placeholderTextColor="#9298AC"
+                    />
 
-                <View style={styles.postEditorFooter}>
-                  <Text style={styles.wordCount}>{wordCount} words</Text>
+                    <View style={styles.postEditorFooter}>
+                      <Text style={styles.wordCount}>
+                        {wordCount} words
+                      </Text>
 
-                  <TouchableOpacity
-                    onPress={handleResetOriginal}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.resetText}>Reset to original</Text>
-                  </TouchableOpacity>
-                </View>
+                      <TouchableOpacity
+                        onPress={handleResetOriginal}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.resetText}>
+                          Reset to original
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
               </View>
 
               {/* PRIMARY ACTION */}
@@ -847,13 +1026,25 @@ export default function LinkedInPostGeneratorScreen() {
                 activeOpacity={0.85}
               >
                 <View style={styles.linkedinButtonIcon}>
-                  <Text style={styles.linkedinButtonIconText}>in</Text>
+                  <Text style={styles.linkedinButtonIconText}>
+                    in
+                  </Text>
                 </View>
 
-                <Text style={styles.linkedinButtonText}>Post to LinkedIn</Text>
+                <Text style={styles.linkedinButtonText}>
+                  Open LinkedIn
+                </Text>
 
-                <Ionicons name="arrow-forward" size={19} color="#FFFFFF" />
+                <Ionicons
+                  name="open-outline"
+                  size={18}
+                  color="#FFFFFF"
+                />
               </TouchableOpacity>
+
+              <Text style={styles.linkedinHint}>
+                Your post will be copied. Paste it into LinkedIn to publish.
+              </Text>
 
               {/* SECONDARY ACTIONS */}
 
@@ -870,7 +1061,7 @@ export default function LinkedInPostGeneratorScreen() {
                   />
 
                   <Text style={styles.secondaryButtonText}>
-                    {copied ? "Copied" : "Copy text"}
+                    {copied ? "Copied" : "Copy"}
                   </Text>
                 </TouchableOpacity>
 
@@ -884,7 +1075,10 @@ export default function LinkedInPostGeneratorScreen() {
                   activeOpacity={0.8}
                 >
                   {saving ? (
-                    <ActivityIndicator size="small" color="#0A1238" />
+                    <ActivityIndicator
+                      size="small"
+                      color="#0A1238"
+                    />
                   ) : (
                     <Ionicons
                       name={saved ? "checkmark" : "bookmark-outline"}
@@ -894,21 +1088,31 @@ export default function LinkedInPostGeneratorScreen() {
                   )}
 
                   <Text style={styles.secondaryButtonText}>
-                    {saving ? "Saving..." : saved ? "Saved" : "Save draft"}
+                    {saving
+                      ? "Saving..."
+                      : saved
+                        ? "Saved"
+                        : "Save draft"}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* REGENERATE */}
+              {/* START OVER */}
 
               <TouchableOpacity
                 style={styles.regenerateButton}
                 onPress={handleRegenerate}
                 activeOpacity={0.7}
               >
-                <Ionicons name="refresh-outline" size={17} color="#59617C" />
+                <Ionicons
+                  name="refresh-outline"
+                  size={17}
+                  color="#858DA8"
+                />
 
-                <Text style={styles.regenerateText}>Start over</Text>
+                <Text style={styles.regenerateText}>
+                  Start over
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -916,9 +1120,15 @@ export default function LinkedInPostGeneratorScreen() {
           {/* FOOTER */}
 
           <View style={styles.footer}>
-            <Ionicons name="sparkles-outline" size={13} color="#727A99" />
+            <Ionicons
+              name="sparkles-outline"
+              size={13}
+              color="#727A99"
+            />
 
-            <Text style={styles.footerText}>Powered by Aevion.AI</Text>
+            <Text style={styles.footerText}>
+              Powered by Aevion.AI
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -946,9 +1156,7 @@ const styles = StyleSheet.create({
     paddingBottom: 35,
   },
 
-  // ====================================================
   // HEADER
-  // ====================================================
 
   header: {
     flexDirection: "row",
@@ -983,9 +1191,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // ====================================================
   // TITLE
-  // ====================================================
 
   titleSection: {
     marginBottom: 20,
@@ -1005,9 +1211,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
 
-  // ====================================================
   // PROGRESS
-  // ====================================================
 
   progressCard: {
     height: 64,
@@ -1075,9 +1279,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.45)",
   },
 
-  // ====================================================
-  // ERROR
-  // ====================================================
+  // ERROR / SUCCESS
 
   errorBox: {
     minHeight: 50,
@@ -1100,10 +1302,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 9,
   },
 
-  // ====================================================
-  // SUCCESS
-  // ====================================================
-
   successBox: {
     minHeight: 50,
     backgroundColor: "#ECFDF3",
@@ -1125,9 +1323,7 @@ const styles = StyleSheet.create({
     marginLeft: 9,
   },
 
-  // ====================================================
-  // SECTIONS
-  // ====================================================
+  // SECTION HEADINGS
 
   sectionHeader: {
     marginBottom: 12,
@@ -1147,9 +1343,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
 
-  // ====================================================
   // POST TYPES
-  // ====================================================
 
   postTypeContainer: {
     marginBottom: 20,
@@ -1231,9 +1425,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0A1238",
   },
 
-  // ====================================================
   // TOPIC INPUT
-  // ====================================================
 
   inputCard: {
     backgroundColor: "#FFFFFF",
@@ -1279,9 +1471,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // ====================================================
   // TONES
-  // ====================================================
 
   toneGrid: {
     flexDirection: "row",
@@ -1323,9 +1513,7 @@ const styles = StyleSheet.create({
     marginLeft: "auto",
   },
 
-  // ====================================================
   // GENERATE BUTTON
-  // ====================================================
 
   generateButton: {
     minHeight: 56,
@@ -1356,9 +1544,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 
-  // ====================================================
   // REVIEW META
-  // ====================================================
 
   reviewMeta: {
     backgroundColor: "#FFFFFF",
@@ -1390,9 +1576,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
 
-  // ====================================================
   // EDIT INPUTS
-  // ====================================================
 
   editInputsButton: {
     alignSelf: "flex-start",
@@ -1409,15 +1593,18 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 
-  // ====================================================
   // PREVIEW HEADER
-  // ====================================================
 
   previewHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: 12,
+  },
+
+  previewHeadingText: {
+    flex: 1,
+    paddingRight: 8,
   },
 
   aiBadge: {
@@ -1437,9 +1624,41 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 
-  // ====================================================
+  // PREVIEW / EDIT SWITCH
+
+  modeSwitch: {
+    flexDirection: "row",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 12,
+  },
+
+  modeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: 7,
+  },
+
+  modeButtonActive: {
+    backgroundColor: "#0A1238",
+  },
+
+  modeButtonText: {
+    color: "#AEB5CE",
+    fontSize: 11,
+    fontWeight: "700",
+    marginLeft: 5,
+  },
+
+  modeButtonTextActive: {
+    color: "#FFFFFF",
+  },
+
   // POST EDITOR
-  // ====================================================
 
   postEditorCard: {
     backgroundColor: "#FFFFFF",
@@ -1487,6 +1706,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  postPreviewText: {
+    color: "#334155",
+    fontSize: 14,
+    lineHeight: 24,
+    paddingTop: 13,
+    paddingBottom: 10,
+  },
+
   postEditor: {
     minHeight: 340,
     color: "#202744",
@@ -1516,9 +1743,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
-  // ====================================================
   // LINKEDIN BUTTON
-  // ====================================================
 
   linkedinButton: {
     minHeight: 56,
@@ -1528,7 +1753,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
 
   linkedinButtonIcon: {
@@ -1553,9 +1778,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 9,
   },
 
-  // ====================================================
+  linkedinHint: {
+    color: "#858DA8",
+    fontSize: 10,
+    textAlign: "center",
+    lineHeight: 15,
+    marginBottom: 13,
+  },
+
   // SECONDARY ACTIONS
-  // ====================================================
 
   secondaryActions: {
     flexDirection: "row",
@@ -1585,9 +1816,7 @@ const styles = StyleSheet.create({
     marginLeft: 7,
   },
 
-  // ====================================================
-  // REGENERATE
-  // ====================================================
+  // START OVER
 
   regenerateButton: {
     alignSelf: "center",
@@ -1603,9 +1832,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 
-  // ====================================================
   // FOOTER
-  // ====================================================
 
   footer: {
     flexDirection: "row",

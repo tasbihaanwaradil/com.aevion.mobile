@@ -24,76 +24,90 @@ type Tool = {
   icon: keyof typeof Ionicons.glyphMap;
   cardBackground: string;
   iconBackground: string;
+  route?: string;
 };
 
 export default function DashboardScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Dashboard tools aligned with the Web App
   const tools: Tool[] = [
     {
-      title: "LinkedIn Post Generator",
+      title: "LinkedIn Post Studio",
       description:
         "Generates professional LinkedIn posts for teachers related to achievements, research, or academic events.",
       icon: "logo-linkedin",
-      cardBackground: "#FFF1E6",
+      cardBackground: "#FFEDD5",
       iconBackground: "#F97316",
+      route: "/linkedin-post-generator",
     },
     {
-      title: "Academic Email Writer",
+      title: "Academic Email Assistant",
       description:
         "Drafts formal emails for class announcements, deadlines, feedback, and administrative communication.",
       icon: "mail",
-      cardBackground: "#EAF8EF",
+      cardBackground: "#DCFCE7",
       iconBackground: "#22C55E",
+      route: "/academic-email-writer",
     },
     {
-      title: "Quiz Generator",
+      title: "Quiz Studio",
       description:
         "Automatically creates quizzes from lecture slides, PDFs, or topic inputs.",
       icon: "help-circle",
-      cardBackground: "#EEF0FF",
+      cardBackground: "#E0E7FF",
       iconBackground: "#6366F1",
+      route: "/quiz-studio",
     },
     {
-      title: "Auto Slides",
-      description: "Generate professional presentation slides from topics.",
+      title: "Lesson Slide Studio",
+      description:
+        "Turns a topic or a rough outline into a ready-to-present slide deck in minutes.",
       icon: "easel",
-      cardBackground: "#FCE7F3",
-      iconBackground: "#EC4899",
+      cardBackground: "#FFE4E6",
+      iconBackground: "#F43F5E",
+      route: "/slide-generator",
     },
     {
-      title: "PDF to Slides",
-      description: "Convert PDF documents into presentation slides.",
+      title: "PDF Lesson Studio",
+      description:
+        "Converts lecture notes or research PDFs directly into a structured, presentable slide deck.",
       icon: "document-text",
-      cardBackground: "#F1FAD9",
-      iconBackground: "#84CC16",
+      cardBackground: "#CFFAFE",
+      iconBackground: "#06B6D4",
+      route: "/pdf-to-slide-generator",
     },
     {
       title: "Reminder",
-      description: "Track schedules, deadlines, and important academic events.",
-      icon: "calendar",
-      cardBackground: "#F3F4F6",
-      iconBackground: "#F97316",
+      description:
+        "Manages teaching tasks, deadlines, and reminders — with alerts before due dates so nothing slips.",
+      icon: "alarm",
+      cardBackground: "#FEF3C7",
+      iconBackground: "#F59E0B",
     },
   ];
 
-  // =========================
-  // VERIFY LOGGED-IN USER
-  // =========================
-
+  // Verify logged-in teacher
   const verifyUser = async () => {
     try {
-      const response = await api.get("/api/auth/verify");
+      const response = await api.get("/api/teacher-auth/verify");
 
-      setUser(response.data.user);
+      if (response.data?.teacher) {
+        setUser(response.data.teacher);
+      } else {
+        throw new Error("Teacher session not found.");
+      }
     } catch (error: any) {
+      console.log(
+        "Dashboard authentication error:",
+        error.response?.data || error.message,
+      );
+
       Alert.alert("Session Expired", "Please login again.", [
         {
           text: "Login",
-          onPress: () => {
-            router.replace("/login");
-          },
+          onPress: () => router.replace("/login"),
         },
       ]);
     } finally {
@@ -105,37 +119,30 @@ export default function DashboardScreen() {
     verifyUser();
   }, []);
 
-  // =========================
-  // OPEN TOOL
-  // =========================
-
+  // Open selected tool
   const handleOpenTool = (tool: Tool) => {
-    if (tool.title === "LinkedIn Post Generator") {
-      router.push("/linkedin-post-generator");
+    if (tool.route) {
+      router.push(tool.route as any);
       return;
     }
 
-    Alert.alert(tool.title, "This tool will be connected next.");
+    Alert.alert(
+      tool.title,
+      "This tool will be available in the mobile app soon.",
+    );
   };
 
-  // =========================
-  // LOADING SCREEN
-  // =========================
-
+  // Loading screen
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FFFFFF" />
-
         <Text style={styles.loadingText}>Loading your dashboard...</Text>
       </View>
     );
   }
 
-  // =========================
-  // DASHBOARD
-  // =========================
-
+  // Dashboard
   return (
     <View style={styles.container}>
       <ScrollView
@@ -143,15 +150,10 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.content}>
-          {/* =========================
-              HEADER
-          ========================= */}
-
+          {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.logo}>Aevion.AI</Text>
-
             <Text style={styles.title}>
-              Welcome back, {user?.name || "User"}!
+              Welcome back, {user?.name || "Teacher"}!
             </Text>
 
             <Text style={styles.subtitle}>
@@ -159,14 +161,11 @@ export default function DashboardScreen() {
             </Text>
           </View>
 
-          {/* =========================
-              TOOLS
-          ========================= */}
-
+          {/* Tool cards */}
           <View style={styles.toolsContainer}>
-            {tools.map((tool, index) => (
+            {tools.map((tool) => (
               <View
-                key={index}
+                key={tool.title}
                 style={[
                   styles.toolCard,
                   {
@@ -183,7 +182,7 @@ export default function DashboardScreen() {
                     },
                   ]}
                 >
-                  <Ionicons name={tool.icon} size={26} color="#FFFFFF" />
+                  <Ionicons name={tool.icon} size={25} color="#FFFFFF" />
                 </View>
 
                 {/* Title */}
@@ -192,11 +191,13 @@ export default function DashboardScreen() {
                 {/* Description */}
                 <Text style={styles.toolDescription}>{tool.description}</Text>
 
-                {/* Open Tool */}
+                {/* Open tool button */}
                 <TouchableOpacity
                   style={styles.openButton}
                   onPress={() => handleOpenTool(tool)}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${tool.title}`}
                 >
                   <Text style={styles.openButtonText}>Open Tool</Text>
                 </TouchableOpacity>
@@ -209,10 +210,7 @@ export default function DashboardScreen() {
   );
 }
 
-// ======================================================
-// STYLES
-// ======================================================
-
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -220,68 +218,62 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingBottom: 40,
+    flexGrow: 1,
+    paddingBottom: 35,
   },
 
   content: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
     paddingHorizontal: 20,
     paddingTop: 55,
   },
 
-  // HEADER
   header: {
-    marginBottom: 25,
-  },
-
-  logo: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 25,
+    marginBottom: 28,
   },
 
   title: {
     fontSize: 28,
     fontWeight: "700",
     color: "#FFFFFF",
-    marginBottom: 8,
+    lineHeight: 36,
   },
 
   subtitle: {
     fontSize: 15,
     color: "#D1D5DB",
     lineHeight: 22,
+    marginTop: 6,
   },
 
-  // TOOLS
   toolsContainer: {
     gap: 18,
   },
 
   toolCard: {
     borderRadius: 18,
-    padding: 20,
-
-    shadowColor: "#000",
+    padding: 22,
+    minHeight: 235,
+    shadowColor: "#000000",
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: 4,
     },
     shadowOpacity: 0.12,
-    shadowRadius: 5,
-
+    shadowRadius: 8,
     elevation: 4,
+    flexDirection: "column",
   },
 
   iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-
+    width: 48,
+    height: 48,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-
-    marginBottom: 15,
+    marginBottom: 14,
   },
 
   toolTitle: {
@@ -295,18 +287,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: "#4B5563",
+    flex: 1,
   },
 
-  // OPEN TOOL BUTTON
   openButton: {
-    height: 44,
+    width: "100%",
+    minHeight: 44,
     borderRadius: 12,
     backgroundColor: "#0A1238",
-
     justifyContent: "center",
     alignItems: "center",
-
-    marginTop: 18,
+    marginTop: 22,
+    paddingVertical: 10,
   },
 
   openButtonText: {
@@ -315,11 +307,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // LOADING
   loadingContainer: {
     flex: 1,
     backgroundColor: "#0A1238",
-
     justifyContent: "center",
     alignItems: "center",
   },

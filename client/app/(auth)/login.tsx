@@ -1,3 +1,4 @@
+
 import api from "@/services/api";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -17,7 +18,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    // Check empty fields
     if (!email.trim() || !password) {
       Alert.alert("Error", "Please enter your email and password");
       return;
@@ -26,31 +26,38 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      // Login
-      const response = await api.post("/api/auth/login", {
+      // Login using the deployed teacher authentication endpoint
+      const response = await api.post("/api/teacher-auth/login", {
         email: email.trim(),
         password,
       });
 
-      // Verify session
-      const verifyResponse = await api.get("/api/auth/verify");
+      // Verify the authenticated session
+      const verifyResponse = await api.get(
+        "/api/teacher-auth/verify"
+      );
 
-      // Login successful
+      const teacherName =
+        verifyResponse.data.teacher?.name ||
+        response.data.teacher?.name ||
+        "Teacher";
+
       Alert.alert(
         "Login Successful",
-        `Welcome back, ${
-          verifyResponse.data.user?.name || response.data.user?.name || "User"
-        }!`,
+        `Welcome back, ${teacherName}!`,
         [
           {
             text: "Continue",
-            onPress: () => {
-              router.replace("/dashboard");
-            },
+            onPress: () => router.replace("/dashboard"),
           },
-        ],
+        ]
       );
     } catch (error: any) {
+      console.log(
+        "Login error:",
+        error.response?.data || error.message
+      );
+
       const message =
         error.response?.data?.message ||
         "Something went wrong. Please try again.";
@@ -63,18 +70,14 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Logo */}
       <Text style={styles.logo}>Aevion.AI</Text>
 
-      {/* Title */}
       <Text style={styles.title}>Welcome Back 👋</Text>
 
-      {/* Subtitle */}
       <Text style={styles.subtitle}>
         Login to continue to your AI assistant
       </Text>
 
-      {/* Email */}
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Email</Text>
 
@@ -91,7 +94,6 @@ export default function LoginScreen() {
         />
       </View>
 
-      {/* Password */}
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Password</Text>
 
@@ -106,7 +108,6 @@ export default function LoginScreen() {
         />
       </View>
 
-      {/* Login Button */}
       <TouchableOpacity
         style={[styles.loginButton, loading && styles.disabledButton]}
         onPress={handleLogin}
@@ -119,9 +120,10 @@ export default function LoginScreen() {
         )}
       </TouchableOpacity>
 
-      {/* Register */}
       <View style={styles.registerContainer}>
-        <Text style={styles.registerText}>Don't have an account?</Text>
+        <Text style={styles.registerText}>
+          Don't have an account?
+        </Text>
 
         <TouchableOpacity
           onPress={() => router.push("/register")}

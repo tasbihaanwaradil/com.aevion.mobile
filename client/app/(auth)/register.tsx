@@ -1,3 +1,4 @@
+
 import api from "@/services/api";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -19,31 +20,52 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    // Check empty fields
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields");
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    // Validate required fields
+    if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
+      Alert.alert("Error", "Please fill in all fields.");
       return;
     }
 
-    // Check password match
+    // Validate name (matches backend requirements)
+    if (!/^[A-Za-z\s]{2,50}$/.test(trimmedName)) {
+      Alert.alert(
+        "Invalid Name",
+        "Name must contain 2–50 letters and spaces only."
+      );
+      return;
+    }
+
+    // Validate email
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
+      return;
+    }
+
+    // Validate password (matches backend requirements)
+    if (!/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/.test(password)) {
+      Alert.alert(
+        "Invalid Password",
+        "Password must be at least 8 characters and include a letter and a number."
+      );
+      return;
+    }
+
+    // Confirm password
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-
-    // Check password length
-    if (password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
+      Alert.alert("Error", "Passwords do not match.");
       return;
     }
 
     try {
       setLoading(true);
 
-      // Send registration request to backend
-      const response = await api.post("/api/auth/register", {
-        name,
-        email,
+      // Register teacher using deployed backend
+      const response = await api.post("/api/teacher-auth/register", {
+        name: trimmedName,
+        email: trimmedEmail,
         password,
       });
 
@@ -51,19 +73,21 @@ export default function RegisterScreen() {
 
       Alert.alert(
         "Success",
-        response.data.message || "Account created successfully",
+        response.data.message || "Account created successfully.",
         [
           {
             text: "Continue",
             onPress: () => {
-              // Navigate to Dashboard
               router.replace("/dashboard");
             },
           },
-        ],
+        ]
       );
     } catch (error: any) {
-      console.log("Registration error:", error.response?.data || error.message);
+      console.log(
+        "Registration error:",
+        error.response?.data || error.message
+      );
 
       const message =
         error.response?.data?.message ||
@@ -77,10 +101,8 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Logo */}
       <Text style={styles.logo}>Aevion.AI</Text>
 
-      {/* Title */}
       <Text style={styles.title}>Create your account</Text>
 
       <Text style={styles.subtitle}>Get started with your AI assistant</Text>
@@ -88,7 +110,6 @@ export default function RegisterScreen() {
       {/* Name */}
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Name</Text>
-
         <TextInput
           style={styles.input}
           placeholder="Enter your name"
@@ -102,7 +123,6 @@ export default function RegisterScreen() {
       {/* Email */}
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Email</Text>
-
         <TextInput
           style={styles.input}
           placeholder="Enter your email"
@@ -118,12 +138,12 @@ export default function RegisterScreen() {
       {/* Password */}
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Password</Text>
-
         <TextInput
           style={styles.input}
           placeholder="Enter your password"
           placeholderTextColor="#999"
           secureTextEntry
+          autoCapitalize="none"
           value={password}
           onChangeText={setPassword}
         />
@@ -132,12 +152,12 @@ export default function RegisterScreen() {
       {/* Confirm Password */}
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Confirm Password</Text>
-
         <TextInput
           style={styles.input}
           placeholder="Confirm your password"
           placeholderTextColor="#999"
           secureTextEntry
+          autoCapitalize="none"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
         />
